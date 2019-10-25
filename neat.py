@@ -9,7 +9,7 @@ class Node:
     # genome network structure
     number: int
 
-    # sensor, hidden, output
+    # "sensor", "hidden" or "output"
     node_type: str 
 
 @dataclass
@@ -115,7 +115,55 @@ def add_node(genome: Genome) -> Genome:
 def crossover(genome_a: Genome, genome_b) -> Genome:
     """ """
 
-    pass
+    new_genome = Genome(
+        nodes = list(),
+        conncetions = list()
+    )
+
+    zipped_genomes = zip(genome_a.connections, genome_b.connections)
+
+    for enum, con_a, con_b in enumerate(zipped_genomes):
+        
+        # Handle excess genes
+        if enum == len(zipped_genomes) - 1:
+            # the new_genome will inherit excess genomes
+            # if the carrier of the genomes is the
+            # parent with the highest fitness value
+            # otherwise the genes will be skipped
+
+            if len(genome_a.connections) - 1 > enum:
+                # genome_a has excess genes
+
+                most_fit, least_fit = max(genome_a, genome_b), min(genome_a, genome_b)
+
+                if most_fit == genome_a:
+                    new_genome.connections.extend(genome_a.connections[enum: ])
+                else:
+                    pass
+
+            elif len(genome_b.connections) - 1 > enum:
+                # genome_b has excess genes
+
+                most_fit, least_fit = max(genome_a, genome_b), min(genome_a, genome_b)
+
+                if most_fit == genome_b:
+                    new_genome.connections.extend(genome_b.connections[enum: ])
+                else:
+                    pass
+
+        # Handle identical genes
+        elif con_a.innov == con_b.innov:
+            # For every identical gene in two genomes
+            # the new genome will decide which genome
+            # to inherit randomly
+
+            new_genome.connections.append(random.choice([con_a, con_b]))
+
+        
+        # Handle disjoint genes
+
+    return new_genome
+
 
 innovation_number = 0
 innovation_database: List[Connection] = list()
