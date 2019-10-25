@@ -90,7 +90,6 @@ def add_node(genome: Genome) -> Genome:
         disable the old connection, and create two new
         connections acting as input and output connections
         to and from your new node
-    
     """
 
     connection = random.choice(genome.connections)
@@ -139,34 +138,26 @@ def crossover(genome_a: Genome, genome_b) -> Genome:
             # parent with the highest fitness value
             # otherwise the genes will be skipped
 
-            if len(genome_a.connections) - 1 > enum:
-                # genome_a has excess genes
+            if len(genome_a.connections) - 1 > enum or len(genome_b.connections) - 1 > enum:
+                # A parent genome has excess genes
 
                 most_fit, least_fit = max(genome_a, genome_b), min(genome_a, genome_b)
 
-                if most_fit == genome_a:
-                    new_genome.connections.extend(genome_a.connections[enum: ])
-                else:
-                    pass
-
-            elif len(genome_b.connections) - 1 > enum:
-                # genome_b has excess genes
-
-                most_fit, least_fit = max(genome_a, genome_b), min(genome_a, genome_b)
-
-                if most_fit == genome_b:
-                    new_genome.connections.extend(genome_b.connections[enum: ])
-                else:
+                try:
+                    new_genome.connections.extend(most_fit.connections[enum: ])
+                except IndexError:
+                    # Excess genes were carried by the least fit parent
                     pass
 
         # Handle identical genes
         elif con_a.innov == con_b.innov:
-            # For every identical gene in two genomes
-            # the new genome will decide which genome
-            # to inherit randomly
+            # For every identical gene in the parent
+            # genomes the new genome will decide which
+            # genome to inherit randomly
 
-            new_genome.connections.append(random.choice([con_a, con_b]))
-
+            new_genome.connections.append(
+                random.choice([con_a, con_b])
+            )
         
         # Handle disjoint genes
 
@@ -183,7 +174,7 @@ def generate_initial_population(num_inputs: int, num_outputs: int, population_si
         new_genome = Genome(
             nodes = [
                 # Increase number of inputs by one to create an initial "bias" node
-                Node(j, "sensor") for j in range(0, args.inputs)
+                Node(j, "sensor") if j <= num_inputs else Node(j, "output") for j in range(0, args.num_inputs + args.num_outputs)
             ],
 
             connections =  [
@@ -193,6 +184,8 @@ def generate_initial_population(num_inputs: int, num_outputs: int, population_si
 
                     weight = random.uniform(-1, 1),
                     enabled = True
+
+                  # Generate every possible combination of input/output connections
                 ) for x in range(0, num_inputs) for y in range(num_inputs, num_inputs + num_outputs)
             ]
         )
@@ -202,10 +195,10 @@ def generate_initial_population(num_inputs: int, num_outputs: int, population_si
     return population
 
 
-
 if __name__ == "__main__":
 
     parser = ArgumentParser()
+
     parser.add_argument('--inputs', metavar='i', type=int,
                         required=True, help="""how many sensor nodes to initialize,
                                                bias node should not be included""")
@@ -219,4 +212,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     population = generate_initial_population(args.inputs, args.outputs, args.population)
-    
