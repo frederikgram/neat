@@ -1,7 +1,12 @@
 """ """
+import sys
 import random
 from typing import List
+from argparse import ArgumentParser
 from dataclasses import dataclass, field
+
+innovation_number = 0
+innovation_database = list()
 
 @dataclass
 class Node:
@@ -14,7 +19,7 @@ class Node:
 
 @dataclass
 class Connection:
-    
+
     # Nodes are represented
     # by their Node.number value
     input_node: int
@@ -30,6 +35,9 @@ class Connection:
         """ Initialize, assign and update 
             local and global innovation number
         """
+
+        global innovation_number
+        global innovation_database      
 
         stored_innov_id = search_for_innovation(self)
         if stored_innov_id == None:
@@ -164,6 +172,51 @@ def crossover(genome_a: Genome, genome_b) -> Genome:
 
     return new_genome
 
+def generate_initial_population(num_inputs: int, num_outputs: int, population_size: int) -> List[Genome]:
+    """ Generates an initial population of the given population size
+        with every input node directly mapped to every output node 
+    """
 
-innovation_number = 0
-innovation_database: List[Connection] = list()
+    population: List[Genome] = list()
+
+    for i in range(0, args.population - 1):
+        new_genome = Genome(
+            nodes = [
+                # Increase number of inputs by one to create an initial "bias" node
+                Node(j, "sensor") for j in range(0, args.inputs)
+            ],
+
+            connections =  [
+                Connection(
+                    input_node = x,
+                    output_node = y,
+
+                    weight = random.uniform(-1, 1),
+                    enabled = True
+                ) for x in range(0, num_inputs) for y in range(num_inputs, num_inputs + num_outputs)
+            ]
+        )
+
+        population.append(new_genome)
+
+    return population
+
+
+
+if __name__ == "__main__":
+
+    parser = ArgumentParser()
+    parser.add_argument('--inputs', metavar='i', type=int,
+                        required=True, help="""how many sensor nodes to initialize,
+                                               bias node should not be included""")
+
+    parser.add_argument('--outputs', metavar='o', type=int,
+                        required=True, help='how many output nodes to initialize')
+
+    parser.add_argument('--population', metavar='p', type=int,
+                        required=True, help='population size')
+
+    args = parser.parse_args()
+
+    population = generate_initial_population(args.inputs, args.outputs, args.population)
+    
