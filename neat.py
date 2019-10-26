@@ -9,6 +9,9 @@ from dataclasses import dataclass, field
 innovation_number = 0
 innovation_database = list()
 
+species_number = 0
+species_database = list()
+
 @dataclass
 class Node:
     # Unique Node Identifier in
@@ -54,6 +57,13 @@ class Genome:
     nodes: List[Node]
     connections: List[Connection]
     fitness: float = field(init=False, default=0)
+
+@dataclass
+class Species:
+
+    id: int
+    representative: Genome
+    genomes: List[Genome]
 
 def search_for_innovation(connection: Connection) -> int or None:
     """ Searches for identical connections through every connection
@@ -126,10 +136,39 @@ def number_of_disjoint_genes(genome_a: Genome, genome_b: Genome) -> int:
     """
 
     count = 0
+
+    zipped_connections = list(zip(genome_a.connections, genome_b.connections))
+    for enum, (con_a, con_b) in enumerate(zipped_connections):
+        if con_a not in genome_b.connections or con_b not in genome_a.connections:
+            if enum < len(genome_a.connections) - 1 and enum < len(genome_b.connections) - 1:
+                count += 1
+
     return count
 
+def number_of_excess_genes(genome_a: Genome, genome_b: Genome) -> int:
+    """ Returns the number of genes that are only carried by 
+        a single parental genome, and exists past the other
+        parental genomes last gene
+    """
+
+    return abs(len(genome_a.connections) - len(genome_b.connections))
+
+def average_weight_difference(genome_a: Genome, genome_b: Genome) -> float:
+    """ Returns the average difference between all weights (including
+        disabled connections) shared by the to parental genomes
+    """
+
+    weights = list()
+
+    longest, shortest = max(genome_a, genome_b, key = lambda genome: len(genome.connections)), min(genome_a, genome_b, key = lambda genome: len(genome.connections))
+    for con_s in shortest.connections:
+        if any([con_l for con_l in longest.connections if con_l.innov == con_s.innov]):
+            weights.append(con_s.weight)
+            
+    return sum(weights) / len(weights)
+
 def crossover(genome_a: Genome, genome_b) -> Genome:
-    """ """
+    """ """ 
 
     new_genome = Genome(
         nodes = list(),
@@ -167,14 +206,17 @@ def crossover(genome_a: Genome, genome_b) -> Genome:
             # not have the same state as the other
             # possibly mutate the new connection
             # to be either enabled or disabled 
-            if any(con_a.enabled != con_b.enabled):
+            if con_a.enabled != con_b.enabled:
+
                 # 25% chance of enabled / disabled mutation
                 if random.randint(0, 100) < 25:
                     new_con.enabled = random.choice([True, False])
 
             new_genome.connections.append(new_con)
         
-        elif con_a not in genome_b.connections or con_b not in genome_a.connections:
+        elif any([con for con in genome_b.connections if con.innov == con_a.innov]) == False or \
+             any([con for con in genome_a.connections if con.innov == con_b.innov]) == False:
+            
             if enum < len(genome_a.connections) - 1 and enum < len(genome_b.connections) - 1:
                 try:
                     new_genome.connections.append(most_fit.connections[enum])
@@ -192,6 +234,18 @@ def crossover(genome_a: Genome, genome_b) -> Genome:
 
     return new_genome
 
+def genome_distance(genome_a: Genome, genome_b: Genome) -> float:
+    """ Returns the distance between two genomes
+        based on their historical markers
+    """
+
+    longest, shortest = max(genome_a, genome_b, key = lambda genome: len(genome.connections)), min(genome_a, genome_b, key = lambda genome: len(genome.connections))
+
+    N = len(longest.connections) + len(longest.nodes)
+    d = (c1 * number_of_excess_genes(genome_a, genome_b) / N) + (c2 * number_of_disjoint_genes(genome_a, genome_b) / N) + c3 * average_weight_difference(genome_a, genome_b)
+
+    return d
+    
 def generate_initial_population(num_inputs: int, num_outputs: int, population_size: int) -> List[Genome]:
     """ Generates an initial population of the given population size
         with every input node directly mapped to every output node 
@@ -226,16 +280,27 @@ def generate_initial_population(num_inputs: int, num_outputs: int, population_si
 def generate_new_generation(current_generation: List[Genome], population_size: int, mutation_rate: int) -> List[Genome]:
     """ """
 
-    # Sort current generation
-    # by their fitness value
-    current_generation = list(sorted(
-            current_generation, key = lambda genome: genome.fitness, reverse=True
+    # Establish 25% of each species
+    # as survivors and let them live
+    # for the new generation
+    for species in species_database:
+        sorted_species = list(sorted(
+            species.genomes, key = lambda genome: genome.fitness, reverse=True
         ))
 
+        species.genomes = species.genomes[:round(int(len(current_generation) * .25))]
+        species.representative = random.choice(species.genomes)
+
+    # Initialize new generation
     new_generation: List[Genomes] = list()
 
     # Fill new generation with the top 25% of the previous generation
-    new_generation.extend(current_generation[:round(int(len(current_generation) * .25))])
+    for species in species_database:
+        new_generation.extend(species.genomes)
+
+    # Reset species genome list
+    for species in species_database:
+        species.genomes = list()
 
     # Repopulate new generation 
     while len(new_generation) < population_size:
@@ -256,6 +321,24 @@ def generate_new_generation(current_generation: List[Genome], population_size: i
                 new_genome = add_node(new_genome)
 
         new_generation.append(new_genome)
+
+
+    for genome in new_generation:
+        species_was_assigned = False
+        for species in species_database:
+            if genome_distance(genome, species.representative) <= dt:
+                species.genomes.append(genome)
+                species_was_assigned = True
+        if species_was_assigned == False:
+            species_database.append(
+                Species(
+                    id = species_number,
+                    representative = genome,
+                    genomes = [genome]
+                )
+            )
+
+            species_number += 1
 
     return new_generation
 
@@ -347,14 +430,18 @@ if __name__ == "__main__":
 
     # Constants with predefined values
     
-    parser.add_argument("--c1", metavar="c1", type=float, default=1.0,
+    parser.add_argument("-c1", metavar="c1", type=float, default=1.0,
                         required=False, help="See README.md # Constants")
 
-    parser.add_argument("--c2", metavar="c2", type=float, default=1.0,
+    parser.add_argument("-c2", metavar="c2", type=float, default=1.0,
                         required=False, help="See README.md # Constants")
     
-    parser.add_argument("--c3", metavar="c3", type=float, default=0.4,
+    parser.add_argument("-c3", metavar="c3", type=float, default=0.4,
                         required=False, help="See README.md # Constants")
+
+    parser.add_argument("-dt", metavar="dt", type=float, default=3.0,
+                        required=False, help="See README.md # Constants")
+
 
     args = parser.parse_args()
 
@@ -365,11 +452,24 @@ if __name__ == "__main__":
     c2 = args.c2
     c3 = args.c3
 
+    # Genome distance Threshold
+    dt = args.dt
+
     population = generate_initial_population(
             num_inputs = args.inputs,
             num_outputs = args.outputs,
             population_size = args.population,
         )
+    
+    species_database.append(
+        Species(
+            id = species_number,
+            representative = random.choice(population),
+            genomes = population
+        )
+    )
+
+    species_number += 1
 
     # Evolution Loop
     while True:
@@ -377,6 +477,17 @@ if __name__ == "__main__":
         # Write population to assesor
 
         # Read fitness from assesor
+
+        # Calculate and assign shared
+        # fitness between species
+        for genome_a in population:
+            adjusted_fitness = (
+                genome_a.fitness / (
+                    sum([0 if genome_distance(genome_a, genome_b) > dt else 1 for genome_b in population if genome_b != genome_a])
+                )
+            )
+
+            genome_a.fitness = adjusted_fitness
 
         # Generate new population
         population = generate_new_generation(
