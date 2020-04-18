@@ -185,7 +185,6 @@ def crossover(genome_a: Genome, genome_b) -> Genome:
         
         # Handle excess genes
         if enum == len(zipped_connections) - 1:
-            
             if len(genome_a.connections) - 1 > enum or len(genome_b.connections) - 1 > enum:
                 # A parent genome has excess genes
 
@@ -197,7 +196,6 @@ def crossover(genome_a: Genome, genome_b) -> Genome:
 
         # Handle identical genes
         elif con_a.innov == con_b.innov:
-
             # Randomly chose a connection
             # between [con_a and con_b]
             new_con = random.choice([con_a, con_b])
@@ -208,8 +206,8 @@ def crossover(genome_a: Genome, genome_b) -> Genome:
             # to be either enabled or disabled 
             if con_a.enabled != con_b.enabled:
 
-                # 25% chance of enabled / disabled mutation
-                if random.randint(0, 100) < 25:
+                # 80% chance of enabled / disabled mutation
+                if random.randint(0, 100) < 80:
                     new_con.enabled = random.choice([True, False])
 
             new_genome.connections.append(new_con)
@@ -225,12 +223,6 @@ def crossover(genome_a: Genome, genome_b) -> Genome:
                     pass
             
     # Create and append neccesary nodes
-    nodes = set()
-    
-    for node in most_fit.nodes:
-        if node.number not in nodes:
-            new_genome.nodes.append(node)
-            nodes.add(node.number)
 
     return new_genome
 
@@ -280,6 +272,8 @@ def generate_initial_population(num_inputs: int, num_outputs: int, population_si
 def generate_new_generation(current_generation: List[Genome], population_size: int, mutation_rate: int) -> List[Genome]:
     """ """
 
+    global species_database
+
     # Establish 25% of each species
     # as survivors and let them live
     # for the new generation
@@ -294,12 +288,10 @@ def generate_new_generation(current_generation: List[Genome], population_size: i
     # Initialize new generation
     new_generation: List[Genomes] = list()
 
-    # Fill new generation with the top 25% of the previous generation
+    # Copy survivors from species
+    # into the new generation
     for species in species_database:
         new_generation.extend(species.genomes)
-
-    # Reset species genome list
-    for species in species_database:
         species.genomes = list()
 
     # Repopulate new generation 
@@ -474,9 +466,10 @@ if __name__ == "__main__":
     # Evolution Loop
     while True:
 
-        # Write population to assesor
 
         # Read fitness from assesor
+        for genome in population:
+            genome.fitness = len(genome.nodes) + len(genome.connections)
 
         # Calculate and assign shared
         # fitness between species
@@ -489,6 +482,8 @@ if __name__ == "__main__":
 
             genome_a.fitness = adjusted_fitness
 
+        print(sum([len(genome.nodes) for genome in population]) / len(population))
+        
         # Generate new population
         population = generate_new_generation(
             current_generation = population,
